@@ -16,7 +16,7 @@ block{
     if(Crypto.check(pubKey, signed, Crypto.sha256(namebyte))) then {
         returnname := name;
     } else {
-        returnname := store;
+        returnname := "signature verification failed";
     }
 } with returnname
 
