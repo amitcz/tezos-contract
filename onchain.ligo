@@ -1,28 +1,54 @@
-type storage is string
+type storage is record [
+  publicKey  : key;
+  message  : string
+]
 
 type parameter is
-  StoreMessage of string
+  StoreMessage of (string * bytes * signature) 
+| StorePublic of key                     
 
 type return is list (operation) * storage
 
-function storeInSC (const store : storage; const name : string) : storage is 
-block{
-  var returnname: string := "";
-  const signed : signature = ("spsig1JcEvjoXgsi3e7eiemSJiPwSioi7NGKST1vJKs6qLRiN5BGzPyBbwcgqr5PxQrrtdFdK4kxYdTe4zWyB6S8AoasrnsQhpC": signature);
+
+// Public key will be stored in advance
+function storePublic (const _publicKey : key; const store : storage) : storage is 
+  record[publicKey = _publicKey; message = store.message]
+
+
+// Will receive msg, msgHex  and signature for verification purpose
+function storeInSC (const store : storage; const origMsg : string; const hexMsg : bytes; const spsig : signature) : storage is 
+ block {
+
+  var returnname :=
+      record [
+        publicKey  = store.publicKey;
+        message  = store.message
+      ];
  
-  var namebyte: bytes := Bytes.pack(name);
-  const pubKey : key = ("sppk7a5nkoBr4TjX8yzcpRTBF88sfQWhKM1Ec5H3XT9VYjVyTin9zvy":key);
+  var namehashbytes: bytes := hexMsg;
+
+  var hashed: bytes := Crypto.sha256(namehashbytes);
+
    
-    if(Crypto.check(pubKey, signed, Crypto.sha256(namebyte))) then {
-        returnname := name;
+    if(Crypto.check(store.publicKey, spsig, hashed)) then {
+        returnname :=
+      record [
+        publicKey  = store.publicKey;
+        message  = origMsg
+      ];
     } else {
-        returnname := "signature verification failed";
+        // returnname := name;
+        returnname :=
+      record [
+        publicKey  = store.publicKey;
+        message  = store.message
+      ];
     }
 } with returnname
 
 function main (const action : parameter; const store : storage) : return is
  ((nil : list (operation)),    // No operations
   case action of
-     StoreMessage (n) -> storeInSC (store, n)
+     StoreMessage (origMsg, hexMsg, spsig) -> storeInSC (store, origMsg, hexMsg, spsig)  // message verification
+    |StorePublic (key) -> storePublic (key, store)       // public key
   end)
-
