@@ -1,47 +1,77 @@
 type storage is record [
   publicKey  : key;
-  message  : string
+  message  : string;
+  checkTx : bool; 
 ]
-
 type parameter is
-  StoreMessage of (string * bytes * signature) 
-| StorePublic of key                     
-
+   StorePublic of (key * signature)  
+ | StoreMessage of (string * signature)                    
 type return is list (operation) * storage
 
 
-// Public key will be stored in advance
-function storePublic (const _publicKey : key; const store : storage) : storage is 
-  record[publicKey = _publicKey; message = store.message]
-
-
-// Will receive msg, msgHex  and signature for verification purpose
-function storeInSC (const store : storage; const origMsg : string; const hexMsg : bytes; const spsig : signature) : storage is 
+function storePublic (const publicKey : key; const spsig : signature;  const store : storage) : storage is 
  block {
+
+    var hexOptimisedPublicKey : bytes := Bytes.pack(publicKey);
+
+    var firstReturn :=  
+            record [publicKey = publicKey;
+            message = store.message; 
+            checkTx = True;
+            ];  
+
+    if(store.checkTx) then {
+  
+       firstReturn :=  
+       record [publicKey = publicKey;
+       message = store.message; 
+       checkTx = True;
+       ];    
+    
+    } else {
+
+        if(Crypto.check(store.publicKey, spsig, hexOptimisedPublicKey)) then {
+            firstReturn :=
+        record [
+            publicKey  = publicKey;
+            message  = store.message;     
+            checkTx = True
+        ];
+        } else {
+            firstReturn :=  
+                record [publicKey = store.publicKey;
+                message = store.message; 
+                checkTx = True;
+                ];
+            }   
+        }
+ 
+    } with firstReturn
+
+function storeInSC (const originalMsg : string; const spsig : signature; const store : storage) : storage is 
+ block {
+  
+  var hexBinary : bytes := Bytes.pack(originalMsg) ;  
 
   var returnname :=
       record [
         publicKey  = store.publicKey;
-        message  = store.message
+        message  = store.message;
+        checkTx = True
       ];
- 
-  var namehashbytes: bytes := hexMsg;
-
-  var hashed: bytes := Crypto.sha256(namehashbytes);
-
-   
-    if(Crypto.check(store.publicKey, spsig, hashed)) then {
+    if(Crypto.check(store.publicKey, spsig, hexBinary)) then {
         returnname :=
       record [
         publicKey  = store.publicKey;
-        message  = origMsg
+        message  = originalMsg;      
+        checkTx = True
       ];
     } else {
-        // returnname := name;
         returnname :=
       record [
         publicKey  = store.publicKey;
-        message  = store.message
+        message  = store.message;
+        checkTx = True
       ];
     }
 } with returnname
@@ -49,6 +79,6 @@ function storeInSC (const store : storage; const origMsg : string; const hexMsg 
 function main (const action : parameter; const store : storage) : return is
  ((nil : list (operation)),    // No operations
   case action of
-     StoreMessage (origMsg, hexMsg, spsig) -> storeInSC (store, origMsg, hexMsg, spsig)  // message verification
-    |StorePublic (key) -> storePublic (key, store)       // public key
+      StorePublic (pbKey, sig) -> storePublic (pbKey, sig, store)       
+    | StoreMessage (originalMsg, spsig) -> storeInSC (originalMsg, spsig, store)  
   end)
