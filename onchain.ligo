@@ -20,26 +20,30 @@ function storePublic (const publicKey : key; const spsig : signature;  const sto
             checkTx = True;
             ];  
 
-    if(store.checkTx) then {
-  
+    // Execute below for the first transaction
+    if(store.checkTx = False) then {
        firstReturn :=  
        record [publicKey = publicKey;
        message = store.message; 
        checkTx = True;
        ];    
     
+    // Execute this for 2nd Tx and onwards
     } else {
 
+        // Do signature verification for new public key
         if(Crypto.check(store.publicKey, spsig, hexOptimisedPublicKey)) then {
             firstReturn :=
         record [
-            publicKey  = publicKey;
+            publicKey  = publicKey; // update new
             message  = store.message;     
             checkTx = True
         ];
+
+         // If sign verify fails, retain old information
         } else {
             firstReturn :=  
-                record [publicKey = store.publicKey;
+                record [publicKey = store.publicKey; // retain previous 
                 message = store.message; 
                 checkTx = True;
                 ];
